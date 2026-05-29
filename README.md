@@ -29,6 +29,7 @@ boot-keyboard support for pre-OS environments.
 | `hardloop_daemon.py` | Persistent serial daemon — keeps the port open, watches ESP32 events, exposes a REPL and CLI. |
 | `hardloop.py` | One-liner wrapper around the daemon (`python hardloop.py "text to type"`). |
 | `port_detect.py` | Auto-detects the ESP32 serial port (CP210x / CH340 / FTDI). |
+| `bridge.py` | Optional **HTTP + WebSocket bridge** — exposes the keyboard over the network (REST endpoints + live event stream). |
 | `setup.sh` | One-shot installer for Linux / Raspberry Pi (deps + serial permissions). |
 | `setup.ps1` | One-shot installer for Windows (deps + port detection). |
 | `requirements.txt` | Python dependencies (`pyserial`). |
@@ -135,6 +136,85 @@ The firmware speaks a simple newline-terminated protocol at **115200 baud**:
 
 The firmware also emits `EVENT:` lines (e.g. `EVENT:CONNECTED`,
 `EVENT:HID_READY`, `EVENT:DISCONNECTED`) that the daemon monitors.
+
+---
+
+## Network bridge (optional)
+
+`bridge.py` runs a small web service on the host (typically a Raspberry Pi)
+that is wired to the ESP32 over serial, so any authorized device on your network
+can send keystrokes and watch connection events live. It reuses the same
+auto-reconnecting daemon as the CLI.
+
+### Install & run
+
+```bash
+pip install -r requirements-bridge.txt
+
+# Localhost only (no auth needed):
+python bridge.py
+
+# Expose on the LAN — a token is REQUIRED:
+export HARDLOOP_TOKEN="choose-a-long-secret"     # PowerShell: $env:HARDLOOP_TOKEN="..."
+python bridge.py --net-host 0.0.0.0 --net-port 8000
+```
+
+Override the serial port with `--serial-port COM5` (auto-detected otherwise).
+Interactive API docs are served at `http://<host>:8000/docs`.
+
+### Security
+
+This service types into a **paired** device, so treat it like remote input:
+
+- Binds to `127.0.0.1` (localhost only) by default.
+- Binding to any other address **requires** `HARDLOOP_TOKEN`; the bridge refuses
+  to start on a public interface without one.
+- When a token is set, every HTTP request must send
+  `Authorization: Bearer <token>` and the WebSocket must pass `?token=<token>`.
+- `/health` is the only unauthenticated endpoint.
+- Run it on a trusted LAN; put it behind a reverse proxy with TLS if exposing
+  beyond that.
+
+### HTTP endpoints
+
+| Method | Path | Body | Purpose |
+| --- | --- | --- | --- |
+| `GET` | `/health` | — | Liveness probe (no auth). |
+| `GET` | `/status` | — | Current BLE state. |
+| `POST` | `/type` | `{"text": "...", "enter": false}` | Type a string (optionally + Enter). |
+| `POST` | `/key` | `{"name": "ENTER"}` | Press a special key. |
+| `POST` | `/mod` | `{"combo": "CTRL+C"}` | Modifier combo. |
+| `POST` | `/media` | `{"name": "PLAY"}` | Media key. |
+| `POST` | `/command` | `{"raw": "STATUS"}` | Raw protocol passthrough. |
+| `WS` | `/events` | — | Live `{"event": ..., "state": ...}` stream. |
+
+### Examples
+
+```bash
+# Status
+curl -H "Authorization: Bearer $HARDLOOP_TOKEN" http://pi.local:8000/status
+
+# Type a line and press Enter
+curl -X POST http://pi.local:8000/type \
+  -H "Authorization: Bearer $HARDLOOP_TOKEN" \
+  -H "Content-Type: application/json" \
+  -d '{"text": "hello from the network", "enter": true}'
+
+# Ctrl+C
+curl -X POST http://pi.local:8000/mod \
+  -H "Authorization: Bearer $HARDLOOP_TOKEN" \
+  -H "Content-Type: application/json" \
+  -d '{"combo": "CTRL+C"}'
+```
+
+Live events in the browser:
+
+```javascript
+const ws = new WebSocket("ws://pi.local:8000/events?token=YOUR_TOKEN");
+ws.onmessage = (e) => console.log(JSON.parse(e.data));
+// → {"event": "SNAPSHOT", "state": "READY"}
+// → {"event": "EVENT:DISCONNECTED after 1234ms", "state": "DISCONNECTED"}
+```
 
 ---
 

@@ -1,0 +1,5 @@
+# Dependencies for the optional network bridge (bridge.py).
+# The core CLI tooling only needs requirements.txt (pyserial).
+-r requirements.txt
+fastapi>=0.110
+uvicorn[standard]>=0.29

@@ -28,11 +28,15 @@ from port_detect import find_esp32_port, list_ports_verbose
 
 
 class HardloopDaemon:
-    def __init__(self, port, baud=115200):
+    def __init__(self, port, baud=115200, on_event=None):
         self.port = port
         self.baud = baud
         self.ser = None
         self.state = "UNKNOWN"
+        # Optional callback invoked (from the background thread) for each
+        # "EVENT:" line, after self.state has been updated. Lets a host such
+        # as the network bridge push live events. Defaults to None (no-op).
+        self.on_event = on_event
         self._lock = threading.Lock()       # serializes all serial I/O
         self._event_thread = None
         self._running = False
@@ -119,6 +123,11 @@ class HardloopDaemon:
             self.state = "DISCONNECTED"
         elif "CONNECTED" in event:
             self.state = "CONNECTED_NOT_READY"
+        if self.on_event:
+            try:
+                self.on_event(event)
+            except Exception:
+                pass   # never let a consumer callback kill the event loop
 
     def _query(self, cmd, timeout=20):
         with self._lock:
