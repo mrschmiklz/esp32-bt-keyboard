@@ -1,0 +1,18 @@
+# Normalize line endings so scripts work across Windows, Raspberry Pi, and Pop!_OS.
+* text=auto eol=lf
+
+# Shell scripts and Python MUST stay LF (CRLF breaks them on Linux).
+*.sh   text eol=lf
+*.py   text eol=lf
+
+# PowerShell scripts use CRLF on Windows.
+*.ps1  text eol=crlf
+
+# Arduino sources — keep LF for consistency.
+*.ino  text eol=lf
+
+# Binary firmware artifacts (never normalize).
+*.bin  binary
+*.hex  binary
+*.elf  binary
+*.uf2  binary

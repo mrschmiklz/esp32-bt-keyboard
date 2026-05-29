@@ -1,9 +1,12 @@
 # setup.ps1 — install the hardloop host tooling on Windows
 #
 # Run once (from this folder):
-#   powershell -ExecutionPolicy Bypass -File .\setup.ps1
+#   powershell -ExecutionPolicy Bypass -File .\setup.ps1            # core CLI tooling
+#   powershell -ExecutionPolicy Bypass -File .\setup.ps1 -Bridge    # also install the network bridge
 # Then test:
 #   python .\hardloop.py --status
+
+param([switch]$Bridge)
 
 $ErrorActionPreference = "Stop"
 
@@ -21,7 +24,11 @@ Write-Host ("Using {0}" -f $python.Source)
 
 # 2. Python dependencies
 Write-Host "Installing Python dependencies..."
-$reqs = Join-Path $PSScriptRoot "requirements.txt"
+if ($Bridge) {
+    $reqs = Join-Path $PSScriptRoot "requirements-bridge.txt"
+} else {
+    $reqs = Join-Path $PSScriptRoot "requirements.txt"
+}
 python -m pip install --quiet -r $reqs
 
 # 3. Detect ESP32 serial port
@@ -37,6 +44,12 @@ Write-Host ""
 Write-Host "Usage:"
 Write-Host "  python .\hardloop.py --status"
 Write-Host '  python .\hardloop.py "your message here"'
+if ($Bridge) {
+    Write-Host "  python .\bridge.py                  # network bridge (localhost)"
+} else {
+    Write-Host ""
+    Write-Host "Add the network bridge later with:  .\setup.ps1 -Bridge"
+}
 Write-Host ""
 Write-Host 'Override port:  $env:HARDLOOP_PORT = "COM6"'
 Write-Host "Explicit port:  python .\hardloop.py --port COM5 --status"

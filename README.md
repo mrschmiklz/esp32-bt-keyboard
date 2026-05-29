@@ -70,27 +70,33 @@ Device identity and timing live at the top of `keyboard_v2/keyboard_v2.ino`:
 
 ## Host setup (Python)
 
-Requires Python 3. The host tooling is cross-platform (Windows, Linux, macOS).
+Requires Python 3. The host tooling is cross-platform; the primary targets are
+**Raspberry Pi OS**, **Windows**, and **Pop!_OS** (and other Debian/Ubuntu Linux).
 
-**Any platform** — install the dependency directly:
-
-```bash
-pip install -r requirements.txt
-```
-
-**Linux / Raspberry Pi** — the helper also handles serial-port group permissions:
+**Linux — Raspberry Pi OS / Pop!_OS / Ubuntu / Debian.** The helper creates a
+virtual environment in `.venv` (so it works on PEP 668 "externally-managed"
+Python — Pi OS Bookworm and Pop!_OS 22.04+) and sets up serial-port permissions:
 
 ```bash
-chmod +x setup.sh && ./setup.sh
+chmod +x setup.sh && ./setup.sh           # core CLI tooling
+./setup.sh --bridge                        # also install the network bridge
 ```
+
+Then run scripts with the venv's Python: `.venv/bin/python hardloop.py --status`.
 
 **Windows** — run the PowerShell helper:
 
 ```powershell
-powershell -ExecutionPolicy Bypass -File .\setup.ps1
+powershell -ExecutionPolicy Bypass -File .\setup.ps1            # core
+powershell -ExecutionPolicy Bypass -File .\setup.ps1 -Bridge    # + network bridge
 ```
 
-**macOS** — use the `pip install` above; the port auto-detects (CP210x/CH340).
+**macOS / manual** — install the dependency directly (use a venv if your Python
+is externally managed):
+
+```bash
+pip install -r requirements.txt
+```
 
 The port is auto-detected. Override it with the `HARDLOOP_PORT` environment
 variable or the `--port` flag (e.g. `COM5`, `/dev/ttyUSB0`).
@@ -147,6 +153,9 @@ can send keystrokes and watch connection events live. It reuses the same
 auto-reconnecting daemon as the CLI.
 
 ### Install & run
+
+On Linux (Pi / Pop!_OS), `./setup.sh --bridge` installs the bridge deps into
+`.venv`; run it with `.venv/bin/python bridge.py`. To install manually:
 
 ```bash
 pip install -r requirements-bridge.txt
