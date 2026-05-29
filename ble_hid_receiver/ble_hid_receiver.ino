@@ -108,13 +108,11 @@ class ClientCallbacks : public BLEClientCallbacks {
 
 class ScanCallbacks : public BLEAdvertisedDeviceCallbacks {
   void onResult(BLEAdvertisedDevice dev) {
-    if (dev.getName() == TARGET_NAME && dev.haveServiceUUID() == false || dev.getName() == TARGET_NAME) {
-      if (dev.getName() == TARGET_NAME) {
-        Serial.printf("Found: %s  RSSI:%d\n", dev.getName().c_str(), dev.getRSSI());
-        pServerAddr = new BLEAddress(dev.getAddress());
-        doConnect = true;
-        BLEDevice::getScan()->stop();
-      }
+    if (dev.getName() == TARGET_NAME) {
+      Serial.printf("Found: %s  RSSI:%d\n", dev.getName().c_str(), dev.getRSSI());
+      pServerAddr = new BLEAddress(dev.getAddress());
+      doConnect = true;
+      BLEDevice::getScan()->stop();
     }
   }
 };
