@@ -30,6 +30,7 @@ boot-keyboard support for pre-OS environments.
 | `hardloop.py` | One-liner wrapper around the daemon (`python hardloop.py "text to type"`). |
 | `port_detect.py` | Auto-detects the ESP32 serial port (CP210x / CH340 / FTDI). |
 | `setup.sh` | One-shot installer for Linux / Raspberry Pi (deps + serial permissions). |
+| `setup.ps1` | One-shot installer for Windows (deps + port detection). |
 | `requirements.txt` | Python dependencies (`pyserial`). |
 
 ---
@@ -68,18 +69,27 @@ Device identity and timing live at the top of `keyboard_v2/keyboard_v2.ino`:
 
 ## Host setup (Python)
 
-Requires Python 3.
+Requires Python 3. The host tooling is cross-platform (Windows, Linux, macOS).
+
+**Any platform** — install the dependency directly:
 
 ```bash
 pip install -r requirements.txt
 ```
 
-On Linux / Raspberry Pi you can instead run the helper, which also handles
-serial-port group permissions:
+**Linux / Raspberry Pi** — the helper also handles serial-port group permissions:
 
 ```bash
 chmod +x setup.sh && ./setup.sh
 ```
+
+**Windows** — run the PowerShell helper:
+
+```powershell
+powershell -ExecutionPolicy Bypass -File .\setup.ps1
+```
+
+**macOS** — use the `pip install` above; the port auto-detects (CP210x/CH340).
 
 The port is auto-detected. Override it with the `HARDLOOP_PORT` environment
 variable or the `--port` flag (e.g. `COM5`, `/dev/ttyUSB0`).
