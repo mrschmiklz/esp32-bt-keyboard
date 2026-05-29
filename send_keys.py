@@ -60,8 +60,10 @@ def send(ser, cmd, timeout=20):
 
 def interactive(ser):
     print("Interactive mode — ESP32 BLE Keyboard")
-    print("Commands: TYPE <text>  TYPEN <text>  KEY <name>  MOD <combo>  STATUS  quit")
-    print("Special keys: ENTER ESC TAB DELETE BACKSPACE UP DOWN LEFT RIGHT HOME END PAGEUP PAGEDOWN CAPS F1-F12")
+    print("Commands: TYPE <text>  TYPEN <text>  KEY <name>  MOD <combo>  MEDIA <name>  STATUS  quit")
+    print("Special keys: ENTER ESC TAB DELETE BACKSPACE INSERT PRINTSCREEN UP DOWN LEFT RIGHT")
+    print("              HOME END PAGEUP PAGEDOWN CAPS F1-F12")
+    print("Media keys:   PLAY PAUSE NEXT PREV STOP MUTE VOLUP VOLDOWN  (keyboard_v2 firmware only)")
     while True:
         try:
             cmd = input('> ').strip()

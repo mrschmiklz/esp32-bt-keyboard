@@ -5,7 +5,8 @@ Search order:
   1. HARDLOOP_PORT environment variable
   2. CP210x / Silicon Labs USB-UART (most ESP32 devkits)
   3. CH340 / CH341 USB-UART (common on cheaper ESP32 boards)
-  4. OS default fallback: /dev/ttyUSB0 (Linux) or COM5 (Windows)
+  4. The only serial port present (if exactly one exists)
+  5. OS default fallback: /dev/ttyUSB0 (Linux) or COM5 (Windows)
 """
 
 import os
@@ -45,6 +46,12 @@ def find_esp32_port() -> str:
             desc = (p.description or "") + (p.manufacturer or "")
             if sig.lower() in desc.lower():
                 return p.device
+
+    # If exactly one serial port is present, it's almost certainly the ESP32.
+    # This is more reliable than a hardcoded guess when the chip description
+    # doesn't match a known signature.
+    if len(ports) == 1:
+        return ports[0].device
 
     # Last resort: OS default
     return _DEFAULT_PORT.get(sys.platform, "/dev/ttyUSB0")

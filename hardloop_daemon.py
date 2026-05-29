@@ -40,16 +40,19 @@ class HardloopDaemon:
         self._response_line = None          # last non-event line received
         self._in_query = False              # event loop yields when True
 
-    def connect(self):
+    def _open_serial(self):
         ser = serial.Serial()
         ser.port = self.port
         ser.baudrate = self.baud
         ser.timeout = 0.05
-        ser.dtr = False
+        ser.dtr = False   # prevent CP210x from resetting ESP32 on port open
         ser.rts = False
         ser.open()
         ser.reset_input_buffer()
-        self.ser = ser
+        return ser
+
+    def connect(self):
+        self.ser = self._open_serial()
         self._running = True
         self._event_thread = threading.Thread(target=self._event_loop, daemon=True)
         self._event_thread.start()
@@ -62,6 +65,7 @@ class HardloopDaemon:
 
     def _event_loop(self):
         buf = b''
+        backoff = 1.0
         while self._running:
             if self._in_query:
                 time.sleep(0.01)
@@ -80,8 +84,30 @@ class HardloopDaemon:
                         else:
                             # Unsolicited response (e.g. boot READY) — log it
                             print(f"[daemon] {line}")
+            except (serial.SerialException, OSError) as e:
+                # USB cable/port dropped — try to reconnect with backoff
+                # instead of busy-looping on the dead handle.
+                if not self._running:
+                    break
+                print(f"[daemon] serial error: {e} — reconnecting in {backoff:.0f}s")
+                self.state = "DISCONNECTED"
+                buf = b''
+                try:
+                    if self.ser and self.ser.is_open:
+                        self.ser.close()
+                except Exception:
+                    pass
+                time.sleep(backoff)
+                backoff = min(backoff * 2, 30.0)
+                try:
+                    self.ser = self._open_serial()
+                    print(f"[daemon] reconnected to {self.port}")
+                    backoff = 1.0
+                except (serial.SerialException, OSError):
+                    continue   # still gone — keep retrying
             except Exception:
-                pass
+                # Unexpected, non-fatal: avoid a tight CPU spin.
+                time.sleep(0.05)
 
     def _handle_event(self, event):
         print(f"[daemon] {event}")
@@ -97,19 +123,23 @@ class HardloopDaemon:
     def _query(self, cmd, timeout=20):
         with self._lock:
             self._in_query = True
-            time.sleep(0.02)                    # let event loop finish current read
-            self.ser.reset_input_buffer()
-            self.ser.write((cmd + '\n').encode())
-            buf = b''
-            deadline = time.time() + timeout
-            while time.time() < deadline:
-                chunk = self.ser.read(max(1, self.ser.in_waiting))
-                if chunk:
-                    buf += chunk
-                    if b'\n' in buf:
-                        break
-            self._in_query = False
-            return buf.decode(errors='replace').strip()
+            try:
+                time.sleep(0.02)                # let event loop finish current read
+                self.ser.reset_input_buffer()
+                self.ser.write((cmd + '\n').encode())
+                buf = b''
+                deadline = time.time() + timeout
+                while time.time() < deadline:
+                    chunk = self.ser.read(max(1, self.ser.in_waiting))
+                    if chunk:
+                        buf += chunk
+                        if b'\n' in buf:
+                            break
+                return buf.decode(errors='replace').strip()
+            except (serial.SerialException, OSError) as e:
+                return f"ERR:SERIAL {e}"
+            finally:
+                self._in_query = False
 
     def status(self):
         resp = self._query("STATUS")

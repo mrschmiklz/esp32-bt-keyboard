@@ -8,7 +8,8 @@ Usage:
   python hardloop.py --key ENTER
   python hardloop.py --mod "CTRL+C"
 
-Defaults to COM5 at 115200 baud.
+Auto-detects the ESP32 serial port at 115200 baud.
+Override with the HARDLOOP_PORT env var or the --port flag.
 """
 
 import sys
