@@ -66,6 +66,33 @@ Device identity and timing live at the top of `keyboard_v2/keyboard_v2.ino`:
 #define KEY_RELEASE_MS  5
 ```
 
+A **fixed random static BLE address** is also set in `startBLE()`. This gives the
+device a stable, clean identity that's independent of the chip's factory MAC, so
+a host's stale pairing-key cache can't silently break new bonds. Change those
+bytes if you ever need a fresh clean-slate identity.
+
+---
+
+## Reliability & persistence
+
+`keyboard_v2` is built to form a **rock-solid, persistent** link and reconnect
+on its own — no re-pairing after a reboot, sleep/wake, or going out of range:
+
+- **Bonds persist in NVS.** Pairing keys survive power cycles (and normal
+  re-flashes, which don't erase the NVS partition), so the host reconnects
+  automatically.
+- **Fixed random static address.** A stable identity the host always recognizes.
+- **Advertising watchdog.** Whenever it's not connected, the firmware ensures it
+  is advertising, so a bonded host can always find and reconnect to it.
+- **Tuned connection parameters.** ~1.5 s after connecting (once pairing/discovery
+  settles), it requests HID-friendly parameters — 7.5–30 ms interval, slave
+  latency 4, and a generous **5 s supervision timeout** so brief interference
+  won't drop the link. Requesting post-settle is honored more reliably by Windows
+  than a request fired at the instant of connect.
+- **Fast advertising (20–40 ms)** for quick reconnect after wake.
+
+To force a fresh pairing (e.g. moving to a new host), send `PAIR` to clear bonds.
+
 ---
 
 ## Host setup (Python)
@@ -140,8 +167,10 @@ The firmware speaks a simple newline-terminated protocol at **115200 baud**:
 | `BONDS` | List bonded device addresses (`keyboard_v2` only). |
 | `PAIR` | Clear all bonds and re-advertise for fresh pairing (`keyboard_v2` only). |
 
-The firmware also emits `EVENT:` lines (e.g. `EVENT:CONNECTED`,
-`EVENT:HID_READY`, `EVENT:DISCONNECTED`) that the daemon monitors.
+The firmware also emits `EVENT:` lines that the daemon monitors:
+`EVENT:CONNECTED`, `EVENT:BONDED`, `EVENT:HID_READY` (host subscribed — safe to
+send keystrokes), `EVENT:CONNPARAMS_TUNED`, `EVENT:DISCONNECTED`,
+`EVENT:ADVERTISING`, and `EVENT:ADV_WATCHDOG_RESTART`.
 
 ---
 
