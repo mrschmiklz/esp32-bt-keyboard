@@ -23,6 +23,10 @@
 #include <HIDKeyboardTypes.h>
 #include <HIDTypes.h>
 
+// NimBLE host call to set a random static address (declared here to avoid
+// depending on the internal nimble host include path).
+extern "C" int ble_hs_id_set_rnd(const uint8_t *rnd_addr);
+
 // ── Device identity ───────────────────────────────────────────────────────────
 #define DEVICE_NAME  "Logitech K380"
 #define MANUFACTURER "Logitech"
@@ -179,6 +183,15 @@ void startBLE() {
     NimBLEDevice::init(DEVICE_NAME);
     NimBLEDevice::setDeviceName(DEVICE_NAME);
     NimBLEDevice::setPower(ESP_PWR_LVL_P9);   // max TX power (+9 dBm)
+
+    // Use a fixed random *static* BLE address (top two bits of the MSB = 11).
+    // This presents a fresh identity to hosts so a stale pairing-key cache tied
+    // to the chip's factory address can't break new bonds. Change these bytes
+    // if you ever need another clean-slate identity.
+    static const uint8_t kRandomAddr[6] = {0x66, 0x55, 0x44, 0x33, 0x22, 0xF1};
+    int addrRc = ble_hs_id_set_rnd(kRandomAddr);
+    Serial.printf("ble_hs_id_set_rnd rc=%d\n", addrRc);
+    NimBLEDevice::setOwnAddrType(BLE_OWN_ADDR_RANDOM);
 
     // Security: bonding with "Just Works" + Secure Connections
     NimBLEDevice::setSecurityAuth(true, false, true);
