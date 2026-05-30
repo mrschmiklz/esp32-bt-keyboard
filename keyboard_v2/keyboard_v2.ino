@@ -126,9 +126,12 @@ NimBLECharacteristic* inputKbd     = nullptr;   // Report ID 1
 NimBLECharacteristic* inputMedia   = nullptr;   // Report ID 2
 NimBLEServer*         pServer      = nullptr;
 
-bool          connected    = false;
-bool          hid_ready    = false;   // true once Windows/host subscribes to CCCD
-unsigned long connectedAt  = 0;
+bool          connected       = false;
+bool          hid_ready       = false;   // true once Windows/host subscribes to CCCD
+unsigned long connectedAt     = 0;
+uint16_t      connHandle      = 0;        // handle of the active connection
+bool          connParamsTuned = false;    // deferred conn-param request done yet?
+unsigned long lastAdvKick     = 0;        // advertising-watchdog timestamp
 
 // ── CCCD subscription tracking ───────────────────────────────────────────────
 class InputReportCallbacks : public NimBLECharacteristicCallbacks {
@@ -162,12 +165,11 @@ class SecurityCallbacks : public NimBLESecurityCallbacks {
 // ── Connection callbacks ──────────────────────────────────────────────────────
 class ServerCallbacks : public NimBLEServerCallbacks {
     void onConnect(NimBLEServer* s, ble_gap_conn_desc* desc) override {
-        connected   = true;
-        connectedAt = millis();
+        connected       = true;
+        connectedAt     = millis();
+        connHandle      = desc->conn_handle;
+        connParamsTuned = false;   // params are tuned later from loop(), once the link settles
         Serial.printf("EVENT:CONNECTED  handle=%d\n", desc->conn_handle);
-        // Request HID-friendly connection parameters:
-        //   min 7.5ms  max 30ms  latency 4  timeout 5000ms
-        s->updateConnParams(desc->conn_handle, 6, 24, 4, 500);
     }
     void onDisconnect(NimBLEServer* s) override {
         connected  = false;
@@ -227,6 +229,10 @@ void startBLE() {
     adv->addServiceUUID(hid->batteryService()->getUUID());
     adv->addServiceUUID(hid->deviceInfo()->getUUID());
     adv->setScanResponse(true);
+    // Fast advertising (20–40ms) so a bonded host re-finds us quickly after a
+    // disconnect or a sleep/wake cycle.
+    adv->setMinInterval(0x20);   // 32 × 0.625ms = 20ms
+    adv->setMaxInterval(0x40);   // 64 × 0.625ms = 40ms
     adv->start();
 
     Serial.println("READY");
@@ -410,5 +416,29 @@ void loop() {
         line.trim();
         if (line.length() > 0) handleCommand(line);
     }
+
+    unsigned long now = millis();
+
+    // Deferred connection-parameter tuning: request HID-friendly params once,
+    // ~1.5s after connecting, when pairing/discovery has settled. Windows honors
+    // a post-settle request far more reliably than one fired at the instant of
+    // connect. min 7.5ms · max 30ms · latency 4 · supervision timeout 5000ms.
+    if (connected && !connParamsTuned && now - connectedAt > 1500) {
+        pServer->updateConnParams(connHandle, 6, 24, 4, 500);
+        connParamsTuned = true;
+        Serial.println("EVENT:CONNPARAMS_TUNED");
+    }
+
+    // Advertising watchdog: whenever we're not connected, make sure we are
+    // advertising so a bonded host can always reconnect. Guards against edge
+    // cases where an abnormal drop leaves advertising stopped.
+    if (!connected && now - lastAdvKick > 3000) {
+        lastAdvKick = now;
+        if (!NimBLEDevice::getAdvertising()->isAdvertising()) {
+            NimBLEDevice::startAdvertising();
+            Serial.println("EVENT:ADV_WATCHDOG_RESTART");
+        }
+    }
+
     delay(10);
 }
