@@ -21,7 +21,10 @@ boot-keyboard support for pre-OS environments.
 
 | Path | What it is |
 | --- | --- |
-| `keyboard_v2/keyboard_v2.ino` | **Main firmware.** Direct NimBLE HID keyboard + media keys, bonding, boot protocol. |
+| `keyboard_v2/keyboard_v2.ino` | **Main firmware (BLE).** NimBLE HID to controlled PC over Bluetooth; `WHOAMI` → `LINK:BLE`. |
+| `keyboard_usb_s3/keyboard_usb_s3.ino` | **Dual-host (USB).** UART serial → controller, USB HID → controlled PC (ESP32-S3); `LINK:USB`. |
+| `docs/DUAL_HOST.md` | Wiring, detection, BLE-only vs UART+USB modes. |
+| `detect_controller.py` | Find the **controller UART** COM port (not the HID link). |
 | `keyboard_emulator/keyboard_emulator.ino` | Simpler alternative firmware built on the [T-vK ESP32-BLE-Keyboard](https://github.com/T-vK/ESP32-BLE-Keyboard) library. |
 | `ble_hid_receiver/ble_hid_receiver.ino` | Companion sketch for a **second ESP32**: connects to the emulator and decodes/prints received keystrokes (for testing). |
 | `ble_scanner/ble_scanner.ino` | Companion sketch: scans for the emulator's advertisement and reports visibility/connection state. |
@@ -38,9 +41,18 @@ boot-keyboard support for pre-OS environments.
 
 ## Hardware
 
-- An ESP32 dev board (any variant with BLE).
-- A USB cable to the host machine.
+- An ESP32 dev board with BLE (`keyboard_v2`), **or** an **ESP32-S3** with native USB
+  for wired HID to the controlled PC (`keyboard_usb_s3`).
+- **Controller** machine: USB cable to the board’s **UART / USB-serial** port
+  (serial @ 115200 for `hardloop` / `touch-grass`).
+- **Controlled** machine:
+  - **Bluetooth-only:** pair over BLE (`keyboard_v2`) — no second USB cable; or
+  - **Dual-host:** native **USB** from the ESP32-S3 into the controlled PC
+    (`keyboard_usb_s3`).
 - *(Optional)* a second ESP32 to run `ble_hid_receiver` / `ble_scanner` for testing.
+
+See **[docs/DUAL_HOST.md](docs/DUAL_HOST.md)** for the two-port topology (UART →
+controller, USB or BLE → controlled).
 
 ---
 
@@ -164,8 +176,9 @@ The firmware speaks a simple newline-terminated protocol at **115200 baud**:
 | `MOD <combo>` | Modifier combo, e.g. `CTRL+C`, `WIN+R`, `CTRL+SHIFT+T`. |
 | `MEDIA <name>` | Media key (`keyboard_v2` only): `PLAY` `PAUSE` `NEXT` `PREV` `STOP` `MUTE` `VOLUP` `VOLDOWN`. |
 | `STATUS` | Returns `READY`, `CONNECTED_NOT_READY`, or `DISCONNECTED`. |
-| `BONDS` | List bonded device addresses (`keyboard_v2` only). |
-| `PAIR` | Clear all bonds and re-advertise for fresh pairing (`keyboard_v2` only). |
+| `WHOAMI` | Output link: `LINK:BLE` (`keyboard_v2`) or `LINK:USB` (`keyboard_usb_s3`). |
+| `BONDS` | List bonded device addresses (`keyboard_v2` / BLE only). |
+| `PAIR` | Clear all bonds and re-advertise for fresh pairing (`keyboard_v2` / BLE only). |
 
 The firmware also emits `EVENT:` lines that the daemon monitors:
 `EVENT:CONNECTED`, `EVENT:BONDED`, `EVENT:HID_READY` (host subscribed — safe to

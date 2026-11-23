@@ -11,9 +11,13 @@
  *   MOD <combo>       — modifier combo: CTRL+C  WIN+R  CTRL+SHIFT+T
  *   MEDIA <name>      — media key: PLAY PAUSE NEXT PREV STOP MUTE
  *                       VOLUP VOLDOWN
- *   STATUS            — CONNECTED or DISCONNECTED
+ *   STATUS            — READY / CONNECTED_NOT_READY / DISCONNECTED
  *   BONDS             — list bonded device addresses
  *   PAIR              — clear all bonds and re-advertise for fresh pairing
+ *   WHOAMI            — prints LINK:BLE (see docs/DUAL_HOST.md)
+ *
+ * Output link: Bluetooth HID to the controlled machine. For dual USB-C boards
+ * that drive the target over native USB, use keyboard_usb_s3 instead (LINK:USB).
  */
 
 #define US_KEYBOARD
@@ -329,6 +333,10 @@ uint16_t resolveMediaKey(String key) {
 // ── Command handler ───────────────────────────────────────────────────────────
 void handleCommand(const String& cmd) {
     // ── Status / management (no connection required) ──────────────────────────
+    if (cmd == "WHOAMI") {
+        Serial.println("LINK:BLE");
+        return;
+    }
     if (cmd == "STATUS") {
         if (!connected)  Serial.println("DISCONNECTED");
         else if (!hid_ready) Serial.println("CONNECTED_NOT_READY");

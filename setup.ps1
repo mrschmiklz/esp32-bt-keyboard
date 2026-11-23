@@ -6,9 +6,16 @@
 # Then test:
 #   python .\hardloop.py --status
 
-param([switch]$Bridge)
+param([switch]$Bridge, [switch]$Detect)
 
 $ErrorActionPreference = "Stop"
+
+if ($Detect) {
+    Push-Location $PSScriptRoot
+    python .\detect_controller.py
+    Pop-Location
+    exit 0
+}
 
 Write-Host "=== Hardloop Setup (Windows) ===" -ForegroundColor Cyan
 
